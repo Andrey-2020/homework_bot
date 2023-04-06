@@ -11,7 +11,6 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-
 TELEGRAM_TOKEN = os.getenv('TELEGRAM_TOKEN')
 TELEGRAM_CHAT_ID = 712994870
 
@@ -26,20 +25,17 @@ HOMEWORK_VERDICTS = {
     'reviewing': 'Работа взята на проверку ревьюером.',
     'rejected': 'Работа проверена: у ревьюера есть замечания.'
 }
+if __name__ == '__main__':
+    logging.basicConfig(
+        level=logging.DEBUG,
+        filename=os.path.expanduser('~/program.log'),
+        format='%(asctime)s, %(levelname)s, %(message)s, %(name)s',
+        filemode='w',
+        encoding='utf-8'
+    )
 
-logging.basicConfig(
-    level=logging.DEBUG,
-    filename='program.log',
-    format='%(asctime)s, %(levelname)s, %(message)s, %(name)s',
-    filemode='w',
-    encoding='utf-8'
-)
-
-# А тут установлены настройки логгера для текущего файла - example_for_log.py
 logger = logging.getLogger(__name__)
-# Устанавливаем уровень, с которого логи будут сохраняться в файл
 logger.setLevel(logging.INFO)
-# Указываем обработчик логов
 handler = RotatingFileHandler(
     'program.log', maxBytes=50000000, backupCount=5)
 logger.addHandler(handler)
@@ -48,7 +44,13 @@ logger.addHandler(handler)
 def check_tokens():
     """Проверяет доступность переменных окружения."""
     """Которые необходимы для работы программы."""
-    return all([PRACTICUM_TOKEN, TELEGRAM_TOKEN, TELEGRAM_CHAT_ID])
+    tokens = [PRACTICUM_TOKEN, TELEGRAM_TOKEN, TELEGRAM_CHAT_ID]
+    for token in tokens:
+        if not token:
+            logging.critical(f'нет  переменной окружения {token}')
+            return False
+    logging.debug('Все токены получены успешно')
+    return all(tokens)
 
 
 def send_message(bot, message):
@@ -64,14 +66,17 @@ def send_message(bot, message):
 
 def get_api_answer(timestamp):
     """Делает запрос к единственному эндпоинту API-сервиса."""
-    payload = {'from_date': timestamp}
     try:
-        logging.info("Запрос к API")
-        homework_statuses = requests.get(url, headers=HEADERS, params=payload)
-        if homework_statuses.status_code != HTTPStatus.OK:
+        if type(timestamp) != int:
+            raise TypeError
+        payload = {'from_date': timestamp}
+        logging.info('Запрос к API')
+        response = requests.get(
+            url, headers=HEADERS, params=payload)
+        if response.status_code != HTTPStatus.OK:
             logging.error('API домашки возвращает код, отличный от 200')
             raise requests.exceptions.HTTPError
-        return homework_statuses.json()
+        return response.json()
     except json.JSONDecodeError as error:
         logging.error(f'Не удалось обработать JSON {error}')
         return None
@@ -124,9 +129,9 @@ def main():
         logging.critical('нет  переменных окружения')
         raise SystemExit(-1)
     bot = telegram.Bot(token=TELEGRAM_TOKEN)
+    send_message(bot, 'Старт бота')
     timestamp1 = 1
     timestamp2 = 0
-    send_message(bot, 'Старт бота')
     while True:
         try:
             response = get_api_answer(timestamp1)
